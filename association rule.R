@@ -1,0 +1,66 @@
+#原表格预览
+data(Titanic)
+Titanic1=as.data.frame(Titanic)
+head(Titanic1,8)
+#将原频数统计表转换成稀疏形式
+titanic.raw=NULL
+for(i in 1:4)
+{titanic.raw=cbind(titanic.raw,rep(as.character(Titanic1[,i]),Titanic1$Freq))
+}
+Titanic.raw=as.data.frame(titanic.raw)
+head(Titanic.raw,8)
+#基于APRIORI算法进行关联规则挖掘
+#调用apriori()函数，设置support=0.1,confidence=0.8,maxlength=10
+library('arules')
+rules.all=apriori(Titanic.raw,control=list((verbose=FALSE)))
+inspect(rules.all)#显示挖掘得到的27条关联规则
+#深度挖掘关联规则
+rules.part=apriori(Titanic.raw,control=list(verbose=FALSE),
+                   parameter=list(minlen=2,supp=0.005,conf=0.8),
+                   appearance=list(rhs=c('Survived=No','Survived=Yes'),
+                   default='lhs'))
+quality(rules.part)=round(quality(rules.part),digits=3)
+rules.sorted=sort(rules.part,by='lift')#按照提升度lift的降序排列
+inspect(rules.sorted)
+#找出冗余的关联规则
+subset.matrix<-is.superset(rules.sorted,rules.sorted)
+diag(subset.matrix)<-FALSE
+subset.matrix[upper.tri(subset.matrix)]<-FALSE
+redundant<-rowSums(subset.matrix,na.rm=T)
+which(redundant>=1)
+#剔除冗余的规则
+rules.last=rules.sorted[-which(redundant>=1)]
+inspect(rules.last)
+#关联规则的对比信息
+#第一组比较（船舱等级和年龄）
+rules_class_age=apriori(Titanic.raw,control=list(verbose=FALSE),
+                        parameter=list(minlen=3,supp=0.002,conf=0.2),
+                        appearance=list(rhs=c('Survived=Yes'),
+                        lhs=c('Class=1st','Class=2nd','Class=3rd','Age=Adult','Age=Child'),
+                        default='none'))
+rules_class_age.sorted=sort(rules_class_age,by='confidence')
+inspect(rules_class_age.sorted)
+#第二组比较（船舱等级和性别）
+rules_class_sex=apriori(Titanic.raw,control=list(verbose=FALSE),
+                        parameter=list(minlen=3,supp=0.002,conf=0.2),
+                        appearance=list(rhs=c('Survived=Yes'),
+                        lhs=c('Class=1st','Class=2nd','Class=3rd','Class=Crew'
+                              ,'Sex=Male','Sex=Female'),
+                        default='none'))
+rules_class_sex.sorted=sort(rules_class_sex,by='confidence')
+inspect(rules_class_sex.sorted)
+#第三组比较（年龄和性别）
+rules_age_sex=apriori(Titanic.raw,control=list(verbose=FALSE),
+                      parameter=list(minlen=3,supp=0.002,conf=0.2),
+                      appearance=list(rhs=c('Survived=Yes'),
+                      lhs=c('Age=Child','Age=Adult','Sex=Male','Sex=Female'),
+                      default='none'))
+rules_age_sex.sorted=sort(rules_age_sex,by='confidence')
+inspect(rules_age_sex.sorted)
+#关联规则可视化
+library(arulesViz)
+plot(rules.all,measure = c("support", "lift"), shading = "confidence")#关联规则的散布图
+plot(rules.all, method = "two-key plot")#关联规则的两要素图
+plot(rules.all, method = "grouped")#关联规则的泡泡图
+plot(rules.part, method = "graph")#关联规则的有向图
+plot(rules.all,method='paracoord',control=list(recorder=TRUE))#关联规则的平行坐标图
